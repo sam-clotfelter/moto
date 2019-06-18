@@ -155,6 +155,9 @@ class SecretsManagerBackend(BaseBackend):
 
         version_id = str(uuid.uuid4())
 
+        awscurrent_version = self._get_version_with_stage(secret_id, AWSCURRENT)
+        awsprevious_version = self._get_version_with_stage(secret_id, AWSPREVIOUS)
+
         secret_version = {
             'secret_string': secret_string,
             'createdate': int(time.time()),
@@ -180,8 +183,6 @@ class SecretsManagerBackend(BaseBackend):
 
         # if another stage was not specified, shift AWSCURRENT and AWSPREVIOUS
         if not version_stages or AWSCURRENT in version_stages:
-            awscurrent_version = self._get_version_with_stage(secret_id, AWSCURRENT)
-            awsprevious_version = self._get_version_with_stage(secret_id, AWSPREVIOUS)
             if awsprevious_version:
                 awsprevious_version['version_stages'].remove(AWSPREVIOUS)
             if awscurrent_version:
@@ -445,7 +446,6 @@ class SecretsManagerBackend(BaseBackend):
         if not remove_from_version_id and not move_to_version_id:
             raise InvalidRequestException(f'To update staging label {version_stage}, you must specify RemoveFromVersionId and/or MoveToVersionId.')
 
-        # TODO reduce redundant code
         # do not let AWSCURRENT or AWSPREVIOUS be removed
         if version_stage in [AWSCURRENT, AWSPREVIOUS] and remove_from_version_id and not move_to_version_id:
             raise InvalidParameterException(f'You can only move staging label {version_stage} to a different secret version. It can?t be completely removed.')
