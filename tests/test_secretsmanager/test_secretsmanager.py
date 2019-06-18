@@ -589,7 +589,7 @@ def test_update_secret_version_stage():
     assert sorted(returned_results) == sorted(expected_results)
 
 @mock_secretsmanager
-def test_update_secret_version_stage_awscurrent():
+def test_update_secret_version_stage_move_awscurrent():
     conn = boto3.client('secretsmanager', region_name='us-west-2')
     put_secret_value_dict = conn.put_secret_value(SecretId=DEFAULT_SECRET_NAME,
                                                   SecretString='dupe_secret')
@@ -606,3 +606,14 @@ def test_update_secret_version_stage_awscurrent():
     returned_results = [(v['VersionId'], v['VersionStages']) for v in versions_list['Versions']]
     expected_results = [(first_version_id, ['AWSCURRENT']), (second_version_id, ['AWSPREVIOUS'])]
     assert sorted(returned_results) == sorted(expected_results)
+
+@mock_secretsmanager
+def test_update_secret_version_stage_remove_awscurrent():
+    conn = boto3.client('secretsmanager', region_name='us-west-2')
+    put_secret_value_dict = conn.put_secret_value(SecretId=DEFAULT_SECRET_NAME,
+                                                  SecretString='dupe_secret')
+    first_version_id = put_secret_value_dict['VersionId']
+    with assert_raises(ClientError):
+        update_secret_version_stage_dict = conn.update_secret_version_stage(SecretId=DEFAULT_SECRET_NAME,
+                                                                            VersionStage='AWSCURRENT',
+                                                                            RemoveFromVersionId=first_version_id)

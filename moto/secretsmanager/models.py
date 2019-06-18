@@ -445,8 +445,7 @@ class SecretsManagerBackend(BaseBackend):
         if not remove_from_version_id and not move_to_version_id:
             raise InvalidRequestException(f'To update staging label {version_stage}, you must specify RemoveFromVersionId and/or MoveToVersionId.')
 
-        # TODO write failing tests
-        # TODO write tests for new cases
+        # TODO reduce redundant code
         # do not let AWSCURRENT or AWSPREVIOUS be removed
         if version_stage in [AWSCURRENT, AWSPREVIOUS] and remove_from_version_id and not move_to_version_id:
             raise InvalidParameterException(f'You can only move staging label {version_stage} to a different secret version. It can?t be completely removed.')
