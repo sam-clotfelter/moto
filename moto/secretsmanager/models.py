@@ -18,6 +18,11 @@ from .exceptions import (
 from .utils import random_password, secret_arn
 
 
+AWSCURRENT = 'AWSCURRENT'
+AWSPREVIOUS = 'AWSPREVIOUS'
+AWSPENDING = 'AWSPENDING'
+
+
 class SecretsManager(BaseModel):
 
     def __init__(self, region_name, **kwargs):
@@ -100,13 +105,13 @@ class SecretsManagerBackend(BaseBackend):
     def _add_secret(self, secret_id, secret_string, tags={}, version_id=None, version_stages=None):
 
         if not version_stages:
-            version_stages = ['AWSCURRENT']
+            version_stages = [AWSCURRENT]
 
         if not version_id:
             version_id = str(uuid.uuid4())
 
-        awscurrent_version = self._get_version_with_stage(secret_id, 'AWSCURRENT')
-        awsprevious_version = self._get_version_with_stage(secret_id, 'AWSPREVIOUS')
+        awscurrent_version = self._get_version_with_stage(secret_id, AWSCURRENT)
+        awsprevious_version = self._get_version_with_stage(secret_id, AWSPREVIOUS)
 
         secret_version = {
             'secret_string': secret_string,
@@ -130,13 +135,13 @@ class SecretsManagerBackend(BaseBackend):
             }
 
         # if another stage was not specified, shift AWSCURRENT and AWSPREVIOUS
-        if not version_stages or 'AWSCURRENT' in version_stages:
+        if not version_stages or AWSCURRENT in version_stages:
             if awsprevious_version:
-                awsprevious_version['version_stages'].remove('AWSPREVIOUS')
+                awsprevious_version['version_stages'].remove(AWSPREVIOUS)
             if awscurrent_version:
-                awscurrent_version['version_stages'].remove('AWSCURRENT')
-                awscurrent_version['version_stages'].update(('AWSPREVIOUS',))
-            secret_version['version_stages'].update(('AWSCURRENT',))
+                awscurrent_version['version_stages'].remove(AWSCURRENT)
+                awscurrent_version['version_stages'].update((AWSPREVIOUS,))
+            secret_version['version_stages'].update((AWSCURRENT,))
             self.secrets[secret_id]['default_version_id'] = version_id
 
         secret = self.secrets[secret_id]
@@ -174,15 +179,15 @@ class SecretsManagerBackend(BaseBackend):
             }
 
         # if another stage was not specified, shift AWSCURRENT and AWSPREVIOUS
-        if not version_stages or 'AWSCURRENT' in version_stages:
-            awscurrent_version = self._get_version_with_stage(secret_id, 'AWSCURRENT')
-            awsprevious_version = self._get_version_with_stage(secret_id, 'AWSPREVIOUS')
+        if not version_stages or AWSCURRENT in version_stages:
+            awscurrent_version = self._get_version_with_stage(secret_id, AWSCURRENT)
+            awsprevious_version = self._get_version_with_stage(secret_id, AWSPREVIOUS)
             if awsprevious_version:
-                awsprevious_version['version_stages'].remove('AWSPREVIOUS')
+                awsprevious_version['version_stages'].remove(AWSPREVIOUS)
             if awscurrent_version:
-                awscurrent_version['version_stages'].remove('AWSCURRENT')
-                awscurrent_version['version_stages'].update(('AWSPREVIOUS',))
-            secret_version['version_stages'].update(('AWSCURRENT',))
+                awscurrent_version['version_stages'].remove(AWSCURRENT)
+                awscurrent_version['version_stages'].update((AWSPREVIOUS,))
+            secret_version['version_stages'].update((AWSCURRENT,))
             self.secrets[secret_id]['default_version_id'] = version_id
 
 
@@ -279,7 +284,7 @@ class SecretsManagerBackend(BaseBackend):
         old_secret_version = secret['versions'][secret['default_version_id']]
         new_version_id = client_request_token or str(uuid.uuid4())
 
-        self._add_secret(secret_id, old_secret_version['secret_string'], secret['tags'], version_id=new_version_id, version_stages=['AWSCURRENT'])
+        self._add_secret(secret_id, old_secret_version['secret_string'], secret['tags'], version_id=new_version_id, version_stages=[AWSCURRENT])
 
         secret['rotation_lambda_arn'] = rotation_lambda_arn or ''
         if rotation_rules:
@@ -287,8 +292,8 @@ class SecretsManagerBackend(BaseBackend):
         if secret['auto_rotate_after_days'] > 0:
             secret['rotation_enabled'] = True
 
-        if 'AWSCURRENT' in old_secret_version['version_stages']:
-            old_secret_version['version_stages'].remove('AWSCURRENT')
+        if AWSCURRENT in old_secret_version['version_stages']:
+            old_secret_version['version_stages'].remove(AWSCURRENT)
 
         response = json.dumps({
             "ARN": secret_arn(self.region, secret['secret_id']),
@@ -440,19 +445,18 @@ class SecretsManagerBackend(BaseBackend):
         if not remove_from_version_id and not move_to_version_id:
             raise InvalidRequestException(f'To update staging label {version_stage}, you must specify RemoveFromVersionId and/or MoveToVersionId.')
 
-        # TODO vars for AWSCURRENT
         # TODO write failing tests
         # TODO write tests for new cases
         # do not let AWSCURRENT or AWSPREVIOUS be removed
-        if version_stage in ['AWSCURRENT', 'AWSPREVIOUS'] and remove_from_version_id and not move_to_version_id:
+        if version_stage in [AWSCURRENT, AWSPREVIOUS] and remove_from_version_id and not move_to_version_id:
             raise InvalidParameterException(f'You can only move staging label {version_stage} to a different secret version. It can?t be completely removed.')
 
         secret = self.secrets[secret_id]
 
         # get the AWSCURRENT and AWSPREVIOUS versions
-        awscurrent_version = self._get_version_with_stage(secret_id, 'AWSCURRENT')
-        awsprevious_version = self._get_version_with_stage(secret_id, 'AWSPREVIOUS')
-        awspending_version = self._get_version_with_stage(secret_id, 'AWSPENDING')
+        awscurrent_version = self._get_version_with_stage(secret_id, AWSCURRENT)
+        awsprevious_version = self._get_version_with_stage(secret_id, AWSPREVIOUS)
+        awspending_version = self._get_version_with_stage(secret_id, AWSPENDING)
 
         # add/remove stages
         if remove_from_version_id:
@@ -465,16 +469,16 @@ class SecretsManagerBackend(BaseBackend):
             secret['versions'][move_to_version_id]['version_stages'].update((version_stage,))
 
         # update AWS* stages
-        if version_stage == 'AWSCURRENT' and move_to_version_id:
-            if awsprevious_version and 'AWSPREVIOUS' in awsprevious_version['version_stages']:
-                awsprevious_version['version_stages'].remove('AWSPREVIOUS')
+        if version_stage == AWSCURRENT and move_to_version_id:
+            if awsprevious_version and AWSPREVIOUS in awsprevious_version['version_stages']:
+                awsprevious_version['version_stages'].remove(AWSPREVIOUS)
             if awscurrent_version:
-                if 'AWSCURRENT' in awscurrent_version['version_stages']:
-                    awscurrent_version['version_stages'].remove('AWSCURRENT')
-                awscurrent_version['version_stages'].update(('AWSPREVIOUS',))
-            secret['versions'][move_to_version_id]['version_stages'].update(('AWSCURRENT',))
+                if AWSCURRENT in awscurrent_version['version_stages']:
+                    awscurrent_version['version_stages'].remove(AWSCURRENT)
+                awscurrent_version['version_stages'].update((AWSPREVIOUS,))
+            secret['versions'][move_to_version_id]['version_stages'].update((AWSCURRENT,))
             if awspending_version:
-                awspending_version['version_stages'].remove('AWSPENDING')
+                awspending_version['version_stages'].remove(AWSPENDING)
             self.secrets[secret_id]['default_version_id'] = move_to_version_id
 
         arn = secret_arn(self.region, secret['secret_id'])
